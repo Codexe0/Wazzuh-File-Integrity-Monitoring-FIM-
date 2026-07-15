@@ -302,7 +302,7 @@ The FIM module successfully detected that `test.txt` was **added** to the monito
 
 ## License
 
-This project is for **educational purposes only** as part of a cybersecurity practical lab.
+This project is licensed under the [MIT License](LICENSE). Feel free to use it for **educational purposes** and cybersecurity learning.
 
 ---
 
