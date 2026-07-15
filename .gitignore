@@ -14,3 +14,10 @@ Desktop.ini
 *.tmp
 *.bak
 *.log
+
+# Original loose screenshots (keep only screenshots/ folder)
+Created*.png
+Directory*.png
+Restart*.png
+Showing*.png
+Screenshot*.png
