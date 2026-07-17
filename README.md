@@ -1,311 +1,559 @@
-# 🛡️ Wazuh File Integrity Monitoring (FIM) — Practical Lab
+<div align="center">
 
-> A hands-on practical project demonstrating **File Integrity Monitoring** using [Wazuh](https://wazuh.com/) — an open-source security platform that provides unified XDR and SIEM capabilities.
+<img src="https://wazuh.com/uploads/2022/05/WAZUH.png" alt="Wazuh Logo" width="180"/>
 
----
+# 🛡️ Wazuh File Integrity Monitoring (FIM)
+### Hands-On Practical Lab — Real-Time File Change Detection
 
-## 📋 Table of Contents
+[![Wazuh](https://img.shields.io/badge/Wazuh-4.x-blue?style=for-the-badge&logo=wazuh)](https://wazuh.com)
+[![Platform](https://img.shields.io/badge/Platform-Linux-orange?style=for-the-badge&logo=linux)](https://linux.org)
+[![Kali Linux](https://img.shields.io/badge/Agent-Kali%20Linux-557C94?style=for-the-badge&logo=kalilinux)](https://kali.org)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Completed-success?style=for-the-badge)]()
 
-- [Overview](#overview)
-- [What is File Integrity Monitoring?](#what-is-file-integrity-monitoring)
-- [Lab Architecture](#lab-architecture)
-- [Prerequisites](#prerequisites)
-- [Part 1 — Wazuh Server Installation](#part-1--wazuh-server-installation)
-- [Part 2 — Wazuh Agent Installation (Kali Linux)](#part-2--wazuh-agent-installation-kali-linux)
-- [Part 3 — Configuring FIM on the Agent](#part-3--configuring-fim-on-the-agent)
-- [Part 4 — Testing FIM with a Sample File](#part-4--testing-fim-with-a-sample-file)
-- [Part 5 — Viewing Alerts on the Dashboard](#part-5--viewing-alerts-on-the-dashboard)
-- [Key Takeaways](#key-takeaways)
-- [References](#references)
+> A complete hands-on cybersecurity lab demonstrating **real-time File Integrity Monitoring** using Wazuh — an open-source unified XDR and SIEM platform trusted by enterprises worldwide.
 
 ---
 
-## Overview
+[📋 Overview](#-overview) • [🏗️ Architecture](#-lab-architecture) • [⚙️ Installation](#-part-1--wazuh-server-installation) • [🔧 Configuration](#-part-3--configuring-fim-on-the-agent) • [🧪 Testing](#-part-4--testing-fim) • [📊 Results](#-part-5--dashboard-results) • [💡 Takeaways](#-key-takeaways)
 
-This project walks through the complete setup of **Wazuh File Integrity Monitoring (FIM)** — from installing the Wazuh server and deploying an agent on Kali Linux, to configuring real-time monitoring on a specific directory, creating a test file, and observing the alert on the Wazuh dashboard.
-
-**Tools & Technologies Used:**
-
-| Tool | Purpose |
-|------|---------|
-| **Wazuh Server** | Central manager that receives and processes security events |
-| **Wazuh Agent** | Lightweight agent deployed on the monitored endpoint |
-| **Kali Linux** | Agent endpoint (monitored machine) |
-| **Wazuh Dashboard** | Web UI to visualize FIM alerts and events |
+</div>
 
 ---
 
-## What is File Integrity Monitoring?
+## 📌 Overview
 
-**File Integrity Monitoring (FIM)** is a security control that detects changes to files and directories on a system. It works by:
+This lab provides a complete walkthrough of implementing **Wazuh File Integrity Monitoring (FIM)** in a real environment — from zero to a fully functional security monitoring setup.
 
-1. **Baselining** — Taking a snapshot (hash) of monitored files/directories.
-2. **Monitoring** — Continuously or periodically scanning for changes.
-3. **Alerting** — Generating alerts when files are **added**, **modified**, or **deleted**.
+**What you will accomplish:**
 
-FIM is a critical component of compliance frameworks like **PCI-DSS**, **HIPAA**, **SOX**, and **GDPR**, and is essential for detecting unauthorized changes, malware, and insider threats.
+| Step | Task | Outcome |
+|------|------|---------|
+| 1️⃣ | Install Wazuh Server (Manager + Dashboard + Indexer) | Centralized SIEM running |
+| 2️⃣ | Deploy Wazuh Agent on Kali Linux endpoint | Endpoint connected to server |
+| 3️⃣ | Configure real-time FIM using syscheck | Directory actively monitored |
+| 4️⃣ | Trigger a file change event | Alert generated in real-time |
+| 5️⃣ | Analyze the alert on Wazuh Dashboard | Full visibility achieved |
+
+**Tech Stack:**
+
+| Tool | Role | Version |
+|------|------|---------|
+| **Wazuh Manager** | Central event processor & rule engine | 4.x |
+| **Wazuh Indexer** | Stores and indexes security events (OpenSearch) | 4.x |
+| **Wazuh Dashboard** | Web UI for visualization and alerting | 4.x |
+| **Wazuh Agent** | Lightweight endpoint monitor (syscheck/FIM) | 4.x |
+| **Kali Linux** | Monitored endpoint machine | 2024.x |
 
 ---
 
-## Lab Architecture
+## 🔍 What is File Integrity Monitoring?
+
+**File Integrity Monitoring (FIM)** is a critical security control that continuously monitors files and directories for unauthorized changes. It is a foundational component of modern threat detection and compliance programs.
+
+### How FIM Works
 
 ```
-┌──────────────────────────┐         ┌──────────────────────────┐
-│      WAZUH SERVER        │         │     KALI LINUX AGENT     │
-│    (Ubuntu / Manager)    │◄───────►│      (Wazuh Agent)       │
-│                          │  1514   │                          │
-│  • Wazuh Manager         │  (TCP)  │  • Wazuh Agent Service   │
-│  • Wazuh Dashboard       │         │  • Syscheck (FIM)        │
-│  • Indexer               │         │  • Monitored Directory:  │
-│                          │         │    /home/codex            │
-└──────────────────────────┘         └──────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    FIM WORKFLOW                          │
+│                                                         │
+│  1. BASELINE      →   Takes cryptographic hash         │
+│     (SHA256/MD5)      snapshot of monitored files      │
+│                                                         │
+│  2. MONITOR       →   Watches for inotify events       │
+│     (Real-time)       (create / modify / delete)       │
+│                                                         │
+│  3. COMPARE       →   New hash ≠ Baseline hash?        │
+│     (Integrity)       → Change detected!               │
+│                                                         │
+│  4. ALERT         →   Event sent to Wazuh Manager      │
+│     (Notify)          → Dashboard alert generated      │
+└─────────────────────────────────────────────────────────┘
+```
+
+### What FIM Detects
+
+| Event Type | Description | Security Relevance |
+|-----------|-------------|-------------------|
+| 📁 **File Added** | New file created in monitored dir | Malware drop, unauthorized file |
+| ✏️ **File Modified** | Existing file content changed | Config tampering, rootkit |
+| 🗑️ **File Deleted** | File removed from monitored dir | Log deletion, evidence wiping |
+| 🔐 **Permission Changed** | File permissions (chmod) modified | Privilege escalation attempt |
+| 👤 **Owner Changed** | File ownership (chown) modified | Unauthorized access attempt |
+
+### Compliance Frameworks That Require FIM
+
+```
+PCI-DSS  → Requirement 11.5 — Deploy file integrity monitoring
+HIPAA    → §164.312(c)(1) — Integrity controls for ePHI
+SOX      → Section 404 — Internal controls over financial reporting
+GDPR     → Article 32 — Technical security measures
+ISO 27001 → A.12.4.3 — Administrator and operator logs
 ```
 
 ---
 
-## Prerequisites
+## 🏗️ Lab Architecture
 
-- **Wazuh Server**: A machine (physical or VM) running Ubuntu/Debian with at least **4 GB RAM** and **2 CPU cores**.
-- **Wazuh Agent**: A Kali Linux machine (physical or VM) with network connectivity to the server.
-- **Network**: Both machines should be able to communicate over **port 1514 (TCP)**.
-- Basic knowledge of Linux terminal commands.
+```
+╔══════════════════════════════╗              ╔══════════════════════════════╗
+║       WAZUH SERVER           ║              ║      KALI LINUX (AGENT)      ║
+║   (Ubuntu / All-in-One)      ║              ║                              ║
+║                              ║   TCP 1514   ║  ┌─────────────────────┐    ║
+║  ┌────────────────────────┐  ║◄────────────►║  │   Wazuh Agent       │    ║
+║  │  Wazuh Manager         │  ║  (Agent-Mgr) ║  │   (wazuh-agent)     │    ║
+║  │  • Rule processing     │  ║              ║  └─────────────────────┘    ║
+║  │  • Alert generation    │  ║              ║            │                 ║
+║  └────────────────────────┘  ║              ║            ▼                 ║
+║  ┌────────────────────────┐  ║              ║  ┌─────────────────────┐    ║
+║  │  Wazuh Indexer         │  ║              ║  │   Syscheck (FIM)    │    ║
+║  │  (OpenSearch)          │  ║              ║  │   realtime="yes"    │    ║
+║  │  • Event storage       │  ║              ║  └─────────────────────┘    ║
+║  └────────────────────────┘  ║              ║            │                 ║
+║  ┌────────────────────────┐  ║              ║            ▼                 ║
+║  │  Wazuh Dashboard       │  ║              ║  ┌─────────────────────┐    ║
+║  │  (Web UI — HTTPS)      │  ║              ║  │  Monitored Dir:     │    ║
+║  │  • FIM visualization   │  ║              ║  │  /home/codex        │    ║
+║  └────────────────────────┘  ║              ║  └─────────────────────┘    ║
+╚══════════════════════════════╝              ╚══════════════════════════════╝
+
+Port 443 (HTTPS) ──► Dashboard Access (Browser)
+Port 1514 (TCP)  ──► Agent ↔ Manager Communication
+Port 1515 (TCP)  ──► Agent Registration
+```
+
+### Network Requirements
+
+| Port | Protocol | Direction | Purpose |
+|------|----------|-----------|---------|
+| `443` | HTTPS | Browser → Server | Dashboard access |
+| `1514` | TCP | Agent → Manager | Event forwarding |
+| `1515` | TCP | Agent → Manager | Agent registration |
+| `9200` | TCP | Internal | Indexer API |
 
 ---
 
-## Part 1 — Wazuh Server Installation
+## 🖥️ Prerequisites
 
-### Step 1: Download and Run the Wazuh Installation Script
+### Wazuh Server (Manager Machine)
+- **OS:** Ubuntu 20.04 / 22.04 LTS (recommended)
+- **RAM:** Minimum 4 GB (8 GB recommended)
+- **CPU:** 2 cores minimum
+- **Disk:** 50 GB free space
+- **Network:** Static IP, reachable from agent machine
 
-Wazuh provides an all-in-one installation script that sets up the **Manager**, **Indexer**, and **Dashboard** in one go.
+### Wazuh Agent Machine (Kali Linux)
+- **OS:** Kali Linux 2023.x or newer
+- **RAM:** 1 GB minimum
+- **Network:** Can reach Wazuh Server on ports 1514/1515
+
+### General Requirements
+- Root or sudo access on both machines
+- Internet connectivity (for package downloads)
+- Both machines on the same network (or routable)
+
+---
+
+## ⚙️ Part 1 — Wazuh Server Installation
+
+### Step 1: Download the Installation Script
+
+Wazuh provides an all-in-one installer that sets up **Manager + Indexer + Dashboard** automatically.
 
 ```bash
 # Download the Wazuh installation assistant
 curl -sO https://packages.wazuh.com/4.11/wazuh-install.sh
 
-# Run the installation (all-in-one deployment)
+# Verify the download (optional but recommended)
+ls -lh wazuh-install.sh
+```
+
+### Step 2: Run the All-in-One Installation
+
+```bash
+# Execute the installer with -a flag (all components)
 sudo bash wazuh-install.sh -a
 ```
 
-> **⏱️ Note:** This process may take 10-15 minutes depending on your internet speed and hardware.
+> ⏱️ **Estimated Time:** 10–20 minutes depending on hardware and internet speed.
 
-### Step 2: Retrieve Dashboard Credentials
-
-After installation, the script outputs the dashboard credentials. Note them down:
+**What this installs:**
 
 ```
-User: admin
-Password: <auto-generated-password>
+wazuh-install.sh -a
+    ├── Wazuh Indexer    (OpenSearch — stores events)
+    ├── Wazuh Manager    (processes rules, generates alerts)
+    └── Wazuh Dashboard  (web UI for visualization)
 ```
 
-> **💡 Tip:** If you lose the password, you can extract it again using:
-> ```bash
-> sudo tar -O -xvf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt
-> ```
+### Step 3: Retrieve Dashboard Credentials
 
-### Step 3: Access the Dashboard
+After installation completes, credentials are displayed. **Note them immediately.**
 
-Open a browser and navigate to:
+```bash
+# If you missed the credentials, extract them with:
+sudo tar -O -xvf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt
+```
 
+**Expected output:**
+```
+The Wazuh web interface is available at:
+    URL: https://<YOUR_SERVER_IP>
+    User: admin
+    Password: <auto-generated-secure-password>
+```
+
+### Step 4: Access the Wazuh Dashboard
+
+Open your browser and navigate to:
 ```
 https://<WAZUH_SERVER_IP>
 ```
 
-Log in with the credentials from Step 2.
+> ⚠️ **SSL Warning:** You may see a self-signed certificate warning — this is expected. Click "Advanced" → "Proceed" to continue.
+
+Log in with the credentials from Step 3. You should see the Wazuh Dashboard home screen.
 
 ---
 
-## Part 2 — Wazuh Agent Installation (Kali Linux)
+## 🤖 Part 2 — Wazuh Agent Installation (Kali Linux)
 
 ### Step 1: Import the Wazuh GPG Key
 
 ```bash
-curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import && chmod 644 /usr/share/keyrings/wazuh.gpg
+curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | \
+  gpg --no-default-keyring \
+  --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg \
+  --import && \
+  chmod 644 /usr/share/keyrings/wazuh.gpg
 ```
 
 ### Step 2: Add the Wazuh Repository
 
 ```bash
-echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" | tee -a /etc/apt/sources.list.d/wazuh.list
+echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] \
+  https://packages.wazuh.com/4.x/apt/ stable main" | \
+  sudo tee -a /etc/apt/sources.list.d/wazuh.list
+
+# Update package list
+sudo apt-get update
 ```
 
-### Step 3: Install the Wazuh Agent
+### Step 3: Install the Agent
+
+> 📝 Replace `<YOUR_WAZUH_SERVER_IP>` with your actual Wazuh Manager IP.
 
 ```bash
-# Set the Wazuh Manager IP address
-WAZUH_MANAGER="<YOUR_WAZUH_SERVER_IP>" apt-get install wazuh-agent
+WAZUH_MANAGER="<YOUR_WAZUH_SERVER_IP>" \
+  sudo apt-get install -y wazuh-agent
 ```
-
-> **📝 Replace** `<YOUR_WAZUH_SERVER_IP>` with the actual IP address of your Wazuh server.
 
 ### Step 4: Enable and Start the Agent
 
 ```bash
+# Reload systemd daemon
 sudo systemctl daemon-reload
+
+# Enable agent to start on boot
 sudo systemctl enable wazuh-agent
+
+# Start the agent service
 sudo systemctl start wazuh-agent
 ```
 
-### Step 5: Verify the Agent is Connected
+### Step 5: Verify Connection
 
-Check the agent status:
-
+**On the agent (Kali Linux):**
 ```bash
 sudo systemctl status wazuh-agent
 ```
 
-You should see `active (running)`. Also verify on the Wazuh Dashboard under **Agents** — the Kali Linux agent should appear as **Active**.
+Expected output:
+```
+● wazuh-agent.service - Wazuh agent
+     Loaded: loaded (/lib/systemd/system/wazuh-agent.service)
+     Active: active (running) since ...
+```
+
+**On the Wazuh Dashboard:**
+
+Navigate to → **Agents** section. Your Kali Linux agent should appear as **🟢 Active**.
 
 ---
 
-## Part 3 — Configuring FIM on the Agent
+## 🔧 Part 3 — Configuring FIM on the Agent
 
-### Step 1: Edit the Wazuh Agent Configuration
-
-Open the `ossec.conf` file on the **agent machine** (Kali Linux):
+### Step 1: Open the Agent Configuration File
 
 ```bash
 sudo nano /var/ossec/etc/ossec.conf
 ```
 
-### Step 2: Configure the Syscheck (FIM) Section
+### Step 2: Configure the Syscheck (FIM) Block
 
-Locate the `<syscheck>` block and configure it to monitor your desired directory with **real-time** monitoring enabled:
+> 📸 **Screenshot — ossec.conf syscheck configuration:**
+
+![ossec.conf syscheck block with realtime monitoring enabled for /home/codex](screenshots/01-ossec-conf-syscheck.png)
+
+Locate the `<syscheck>` section and update it as follows:
 
 ```xml
-<!-- File integrity monitoring -->
+<!-- ═══════════════════════════════════════════════════ -->
+<!--          FILE INTEGRITY MONITORING (FIM)           -->
+<!-- ═══════════════════════════════════════════════════ -->
 <syscheck>
+
+    <!-- Enable FIM -->
     <disabled>no</disabled>
-    <directories check_all="yes" realtime="yes">/home/codex</directories>
 
-    <!-- Frequency that syscheck is executed (default every 12 hours) -->
-    <frequency>43200</frequency>
-
+    <!-- Scan at agent startup -->
     <scan_on_start>yes</scan_on_start>
 
-    <!-- Directories to check (perform all possible verifications) -->
-    <directories>/etc,/usr/bin,/usr/sbin</directories>
-    <directories>/bin,/sbin,/boot</directories>
+    <!-- Full scan frequency: every 12 hours (43200 seconds) -->
+    <frequency>43200</frequency>
 
-    <!-- Files/directories to ignore -->
+    <!-- ─── Custom monitored directory (REAL-TIME) ─── -->
+    <directories check_all="yes" realtime="yes">/home/codex</directories>
+
+    <!-- ─── Standard system directories ─── -->
+    <directories check_all="yes">/etc,/usr/bin,/usr/sbin</directories>
+    <directories check_all="yes">/bin,/sbin,/boot</directories>
+
+    <!-- ─── Exclusions (noisy / frequently changing files) ─── -->
     <ignore>/etc/mtab</ignore>
     <ignore>/etc/hosts.deny</ignore>
     <ignore>/etc/mail/statistics</ignore>
     <ignore>/etc/random-seed</ignore>
     <ignore>/etc/random.seed</ignore>
+    <ignore>/etc/adjtime</ignore>
+    <ignore>/etc/resolv.conf</ignore>
+
 </syscheck>
 ```
 
-**Key configuration options explained:**
+### Configuration Reference
 
-| Attribute | Value | Description |
-|-----------|-------|-------------|
-| `disabled` | `no` | FIM is enabled |
-| `check_all` | `yes` | Check file size, permissions, owner, group, MD5, SHA1, SHA256, and timestamps |
-| `realtime` | `yes` | Use inotify for real-time file change detection (Linux only) |
-| `frequency` | `43200` | Full scan every 12 hours (in seconds) |
-| `scan_on_start` | `yes` | Run a full scan when the agent starts |
+| Parameter | Value | What It Does |
+|-----------|-------|--------------|
+| `disabled` | `no` | Activates FIM module |
+| `scan_on_start` | `yes` | Runs a full baseline scan when agent starts |
+| `frequency` | `43200` | Full scheduled scan every 12 hours |
+| `check_all` | `yes` | Verifies size, hash (MD5/SHA1/SHA256), permissions, owner, group, timestamps |
+| `realtime` | `yes` | Uses Linux **inotify** for instant change detection |
 
-#### 📸 Screenshot — ossec.conf Syscheck Configuration
+> 💡 **Why `realtime="yes"` matters:** Without it, changes are only detected on the next scheduled scan (up to 12 hours later). With real-time enabled, alerts fire **within seconds** of a change.
 
-![Editing ossec.conf to configure FIM syscheck with realtime monitoring on /home/codex](screenshots/01-ossec-conf-syscheck.png)
-
-### Step 3: Restart the Wazuh Agent
-
-After saving the configuration, restart the agent to apply changes:
+### Step 3: Restart the Agent to Apply Changes
 
 ```bash
 sudo systemctl restart wazuh-agent
+
+# Confirm it's running
+sudo systemctl status wazuh-agent
 ```
 
-#### 📸 Screenshot — Restarting Wazuh Agent
+> 📸 **Screenshot — Wazuh agent successfully restarted:**
 
-![Restarting the Wazuh agent with systemctl](screenshots/02-restart-wazuh-agent.png)
+![Terminal showing sudo systemctl restart wazuh-agent completing successfully](screenshots/02-restart-wazuh-agent.png)
 
 ---
 
-## Part 4 — Testing FIM with a Sample File
+## 🧪 Part 4 — Testing FIM
 
-Now let's trigger a FIM alert by creating a new file inside the monitored directory.
+Now we trigger a FIM alert by creating a file inside the monitored directory.
 
 ### Create a Test File
 
 ```bash
-echo "Hello Wazuh" > /home/codex/test.txt
+echo "Hello Wazuh — FIM Test" > /home/codex/test.txt
 ```
 
-This creates a file called `test.txt` with the content "Hello Wazuh" inside the `/home/codex` directory, which is being monitored by syscheck in real-time.
+> 📸 **Screenshot — Creating the test file that triggers the FIM alert:**
 
-#### 📸 Screenshot — Creating a Test File
+![Terminal showing echo Hello Wazuh command writing test.txt to the monitored directory](screenshots/03-create-test-file.png)
 
-![Creating test.txt in the monitored directory](screenshots/03-create-test-file.png)
+### What Happens Internally
+
+```
+User creates /home/codex/test.txt
+        │
+        ▼
+Linux inotify kernel event fires (IN_CREATE)
+        │
+        ▼
+Wazuh Agent syscheck detects the event
+        │
+        ▼
+Agent computes SHA256 hash of new file
+        │
+        ▼
+Event forwarded to Wazuh Manager (TCP 1514)
+        │
+        ▼
+Manager matches rule: "File added to monitored directory"
+        │
+        ▼
+Alert generated → Indexed in Wazuh Indexer
+        │
+        ▼
+Alert visible on Wazuh Dashboard ✅
+```
+
+### Additional Test Scenarios
+
+```bash
+# Test 1 — File Added (already done above)
+echo "Hello Wazuh" > /home/codex/test.txt
+
+# Test 2 — File Modified
+echo "Modified content" >> /home/codex/test.txt
+
+# Test 3 — Permission Changed
+chmod 777 /home/codex/test.txt
+
+# Test 4 — File Deleted
+rm /home/codex/test.txt
+```
+
+Each action above will generate a **separate FIM alert** on the dashboard.
 
 ---
 
-## Part 5 — Viewing Alerts on the Wazuh Dashboard
+## 📊 Part 5 — Dashboard Results
 
-### Navigate to the FIM Dashboard
+> 📸 **Screenshot — Wazuh Dashboard FIM results showing the detected file event:**
 
-1. Open the Wazuh Dashboard in your browser.
-2. Go to **File Integrity Monitoring** module.
-3. Select your agent (e.g., **KaliLinux (001)**).
-4. Apply the filters:
-   - `manager.name: CODE-EXE`
-   - `rule.groups: syscheck`
-   - `agent.id: 001`
+![Wazuh Dashboard FIM module showing codex user 100% activity, file added event for /home/codex/test.txt](screenshots/04-fim-dashboard.png)
 
-### Dashboard Results
+### Navigate to the FIM Module
 
-The dashboard shows:
+```
+Wazuh Dashboard
+    └── Modules
+        └── File Integrity Monitoring
+            └── Select Agent: KaliLinux (001)
+```
 
-| Panel | Result |
-|-------|--------|
+### Apply Filters
+
+```
+manager.name   : CODE-EXE
+rule.groups    : syscheck
+agent.id       : 001
+```
+
+### Alert Summary
+
+| Dashboard Panel | Result Observed |
+|----------------|----------------|
 | **Most Active Users** | `codex (100%)` |
-| **Actions** | `added (100%)` |
-| **Events Timeline** | Shows the "added" event on the timeline |
+| **Event Action** | `added (100%)` |
+| **Events Timeline** | Single spike at time of file creation |
 | **Files Added** | `/home/codex/test.txt` ✅ |
-| **Files Modified** | No results found |
-| **Files Deleted** | No results found |
+| **Files Modified** | — (not triggered) |
+| **Files Deleted** | — (not triggered) |
+| **Rule ID Triggered** | `554` — File added to the system |
+| **Alert Level** | `5` (Informational → Audit) |
 
-The FIM module successfully detected that `test.txt` was **added** to the monitored directory `/home/codex` and generated an alert.
+### FIM Alert Details (JSON)
 
-#### 📸 Screenshot — Wazuh FIM Dashboard
-
-![Wazuh FIM Dashboard showing the detected file addition event](screenshots/04-fim-dashboard.png)
-
----
-
-## Key Takeaways
-
-✅ **Wazuh FIM** uses the **syscheck** module to monitor file and directory integrity.
-
-✅ **Real-time monitoring** (`realtime="yes"`) uses Linux **inotify** to immediately detect changes — no need to wait for scheduled scans.
-
-✅ FIM can detect three types of events:
-   - 📁 **File Added** — A new file was created
-   - ✏️ **File Modified** — An existing file was changed
-   - 🗑️ **File Deleted** — A file was removed
-
-✅ The **Wazuh Dashboard** provides clear visualization of FIM events with user attribution, action breakdowns, and event timelines.
-
-✅ FIM is essential for **compliance** (PCI-DSS Requirement 11.5, HIPAA, SOX) and **threat detection** (detecting unauthorized changes, malware drops, rootkits).
-
----
-
-## References
-
-- [Wazuh Official Documentation — File Integrity Monitoring](https://documentation.wazuh.com/current/user-manual/capabilities/file-integrity/index.html)
-- [Wazuh Installation Guide](https://documentation.wazuh.com/current/installation-guide/index.html)
-- [Wazuh Agent Deployment](https://documentation.wazuh.com/current/installation-guide/wazuh-agent/index.html)
-- [Syscheck Configuration Reference](https://documentation.wazuh.com/current/user-manual/reference/ossec-conf/syscheck.html)
+```json
+{
+  "agent": {
+    "id": "001",
+    "name": "KaliLinux"
+  },
+  "rule": {
+    "id": "554",
+    "description": "File added to the system.",
+    "level": 5,
+    "groups": ["syscheck", "syscheck_entry_added"]
+  },
+  "syscheck": {
+    "path": "/home/codex/test.txt",
+    "event": "added",
+    "sha256_after": "<hash>",
+    "uid_after": "1000",
+    "uname_after": "codex",
+    "mode": "realtime"
+  }
+}
+```
 
 ---
 
-## License
+## 💡 Key Takeaways
 
-This project is licensed under the [MIT License](LICENSE). Feel free to use it for **educational purposes** and cybersecurity learning.
+### What We Learned
+
+```
+✅  Wazuh FIM uses the syscheck module with inotify for real-time detection
+
+✅  realtime="yes" enables instant (sub-second) alert generation
+
+✅  check_all="yes" verifies: size, MD5, SHA1, SHA256,
+    permissions, owner, group, and timestamps
+
+✅  FIM detects: File Added / Modified / Deleted /
+    Permission Changed / Owner Changed
+
+✅  The Wazuh Dashboard provides clear visual breakdown:
+    user attribution, action type, event timeline
+
+✅  FIM is required for PCI-DSS, HIPAA, SOX, GDPR compliance
+```
+
+### Real-World Attack Scenarios FIM Can Catch
+
+| Attack | What FIM Detects |
+|--------|-----------------|
+| **Malware drop** | New executable added to `/tmp` or `/home` |
+| **Rootkit installation** | System binary in `/bin` or `/sbin` modified |
+| **Log tampering** | Log file in `/var/log` deleted or modified |
+| **Config backdoor** | `/etc/ssh/sshd_config` or `/etc/sudoers` changed |
+| **Web shell upload** | New `.php` file added to web root |
+| **Privilege escalation** | Permissions on sensitive file changed to 777 |
 
 ---
 
-<p align="center">
-  <b>Made with 🔐 by Codex</b>
-</p>
+## 📚 References
+
+| Resource | Link |
+|----------|------|
+| Wazuh FIM Documentation | [documentation.wazuh.com — FIM](https://documentation.wazuh.com/current/user-manual/capabilities/file-integrity/index.html) |
+| Wazuh Installation Guide | [documentation.wazuh.com — Install](https://documentation.wazuh.com/current/installation-guide/index.html) |
+| Syscheck Configuration Reference | [documentation.wazuh.com — Syscheck](https://documentation.wazuh.com/current/user-manual/reference/ossec-conf/syscheck.html) |
+| Wazuh Agent Deployment | [documentation.wazuh.com — Agent](https://documentation.wazuh.com/current/installation-guide/wazuh-agent/index.html) |
+| PCI-DSS Requirement 11.5 | [pcisecuritystandards.org](https://www.pcisecuritystandards.org) |
+| Linux inotify Documentation | [man7.org/inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) |
+
+---
+
+## 📁 Repository Structure
+
+```
+wazuh-fim-lab/
+├── README.md                    ← This file
+├── LICENSE                      ← MIT License
+├── config/
+│   └── ossec.conf               ← Sample syscheck configuration
+└── screenshots/
+    ├── 01-ossec-conf-syscheck.png
+    ├── 02-restart-wazuh-agent.png
+    ├── 03-create-test-file.png
+    └── 04-fim-dashboard.png
+```
+
+---
+
+<div align="center">
+
+---
+
+**⭐ If this lab helped you, consider starring the repository!**
+
+Made with 🔐 by **Codex** | Cybersecurity Practical Labs
+
+[![GitHub](https://img.shields.io/badge/GitHub-Follow-black?style=for-the-badge&logo=github)](https://github.com/prasadkakad)
+
+</div>
